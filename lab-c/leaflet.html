@@ -1,0 +1,118 @@
+<head>
+    <meta charset="UTF-8">
+    <title>Maps with Leaflet</title>
+    <link rel="stylesheet" href="leaflet-1.7.1/leaflet.css" />
+    <script src="leaflet-1.7.1/leaflet-src.js"></script>
+    <script src="leaflet-1.7.1/leaflet-providers.js"></script>
+    <script src="leaflet-1.7.1/leaflet-image.js"></script>
+
+    <style>
+        #map {
+            width: 600px;
+            height: 300px;
+            border: 1px solid black;
+        }
+
+        #puzzle-container, #drop-zone {
+            width: 600px;
+            height: 300px;
+            border: 1px solid black;
+            position: relative;
+            margin-top: 20px;
+        }
+
+        #puzzle-container {
+            background-color: lightgray;
+        }
+
+        #drop-zone {
+            background-color: white;
+        }
+
+        .puzzle-piece {
+            width: 150px;
+            height: 75px;
+            border: 1px solid black;
+            position: absolute;
+            cursor: move;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+
+<button id="getLocation">Get Current Location</button>
+<button id="saveButton">Save Raster Map</button>
+<br>
+
+<canvas id="puzzle-container"></canvas>
+<canvas id="drop-zone"></canvas>
+<input type="text" id="info-to-draw" placeholder="Podaj liczbe bloków:"/>
+<button id="draw">Save Raster Map</button>
+
+    <script>
+        let map = L.map('map').setView([53.430127, 14.564802], 18);
+        // L.tileLayer.provider('OpenStreetMap.DE').addTo(map);
+        L.tileLayer.provider('Esri.WorldImagery').addTo(map);
+        let marker = L.marker([53.430127, 14.564802]).addTo(map);
+        marker.bindPopup("<strong>Hello!</strong><br>This is a popup.");
+
+        document.getElementById("saveButton").addEventListener("click", function()
+        {
+            leafletImage(map, function (err, canvas)
+            {
+                let rasterMap = document.getElementById("puzzle-container");
+                let rasterContext = rasterMap.getContext("2d");
+
+                rasterContext.drawImage(canvas, 0, 0, 300, 150);
+            });
+        });
+
+        document.getElementById("draw").addEventListener("click", function()
+        {
+            const input = document.getElementById("info-to-draw");
+            const inputValue = input.value;
+            let dropp = document.getElementById("drop-zone");
+            dropp.width = 300;
+            dropp.height = 150;
+            let dropp_container = dropp.getContext("2d");
+
+            function draw(X, Y, x, y)
+            {
+                dropp_container.beginPath();
+                dropp_container.moveTo(X, Y);
+                dropp_container.lineTo(x, y);
+                dropp_container.stroke();
+            }
+
+            for (let n = 0.5; n < 300; n += 50)
+            {
+                draw(n, 0, n, 300);
+                draw(0, n, 300.5, n);
+            }
+        });
+
+        document.getElementById("getLocation").addEventListener("click", function(event)
+        {
+            if (! navigator.geolocation)
+            {
+                console.log("No geolocation.");
+            }
+
+            navigator.geolocation.getCurrentPosition(position =>
+            {
+                console.log(position);
+                let lat = position.coords.latitude;
+                let lon = position.coords.longitude;
+
+                map.setView([lat, lon]);
+                let marker = L.marker([lat, lon]).addTo(map);
+                marker.bindPopup("Your localization.");
+            }, positionError =>
+            {
+                console.error(positionError);
+            });
+        });
+    </script>
+</body>
+</html>

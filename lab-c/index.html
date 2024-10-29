@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Puzzle</title>
+    <link rel="stylesheet" href="leaflet-1.7.1/leaflet.css" />
+    <script src="leaflet-1.7.1/leaflet-src.js"></script>
+    <script src="leaflet-1.7.1/leaflet-providers.js"></script>
+    <script src="leaflet-1.7.1/leaflet-image.js"></script>
+
+    <style>
+        #map
+        {
+            width: 600px;
+            height: 300px;
+            border: 1px solid black;
+        }
+
+        #puzzle-container, #drop-zone
+        {
+            width: 600px;
+            height: 300px;
+            border: 1px solid black;
+            position: relative;
+            margin-top: 20px;
+        }
+
+        #puzzle-container
+        {
+            background-color: lightgray;
+        }
+
+        #drop-zone
+        {
+            float: right;
+            background-color: white;
+        }
+
+        .puzzle-piece
+        {
+            border: 1px solid black;
+            position: absolute;
+            cursor: move;
+        }
+
+        #checkButton
+        {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+<div id="drop-zone"></div>
+
+<label for="division">Podziel obrazek na:</label>
+<select id="division">
+    <option value="2">2x2</option>
+    <option value="3">3x3</option>
+    <option value="4" selected>4x4</option>
+    <option value="5">5x5</option>
+    <option value="6">6x6</option>
+    <option value="7">7x7</option>
+    <option value="8">8x8</option>
+</select>
+
+<button id="getLocation">Get Current Location</button>
+<button id="saveButton">Save Raster Map</button>
+<button id="checkButton">Sprawdź układ</button>
+<br>
+
+<div id="puzzle-container"></div>
+
+<script>
+    let map = L.map('map').setView([53.430127, 14.564802], 18);
+    L.tileLayer.provider('Esri.WorldImagery').addTo(map);
+    let marker = L.marker([53.430127, 14.564802]).addTo(map);
+    marker.bindPopup("<strong>Hello!</strong><br>This is a popup.");
+
+    document.getElementById("saveButton").addEventListener("click", function()
+    {
+        const divisions = parseInt(document.getElementById("division").value);
+        leafletImage(map, function(err, canvas)
+        {
+            const pieceWidth = 600 / divisions;
+            const pieceHeight = 300 / divisions;
+            const puzzleContainer = document.getElementById('puzzle-container');
+            const dropZone = document.getElementById('drop-zone');
+            puzzleContainer.innerHTML = '';
+            dropZone.innerHTML = '';
+
+            for (let i = 0; i < divisions; i++)
+            {
+                for (let j = 0; j < divisions; j++)
+                {
+                    const dropPlaceholder = document.createElement('div');
+                    dropPlaceholder.style.width = `${pieceWidth}px`;
+                    dropPlaceholder.style.height = `${pieceHeight}px`;
+                    dropPlaceholder.style.position = 'absolute';
+                    dropPlaceholder.style.top = `${i * pieceHeight}px`;
+                    dropPlaceholder.style.left = `${j * pieceWidth}px`;
+                    dropPlaceholder.style.border = '1px dashed gray';
+                    dropPlaceholder.setAttribute('data-row', i);
+                    dropPlaceholder.setAttribute('data-col', j);
+                    dropZone.appendChild(dropPlaceholder);
+                }
+            }
+
+            for (let i = 0; i < divisions; i++)
+            {
+                for (let j = 0; j < divisions; j++)
+                {
+                    const piece = document.createElement('canvas');
+                    piece.width = pieceWidth;
+                    piece.height = pieceHeight;
+                    const context = piece.getContext('2d');
+                    context.drawImage(canvas, j * pieceWidth, i * pieceHeight, pieceWidth, pieceHeight, 0, 0, pieceWidth, pieceHeight);
+
+                    piece.classList.add('puzzle-piece');
+                    piece.style.width = `${pieceWidth}px`;
+                    piece.style.height = `${pieceHeight}px`;
+                    piece.style.top = `${Math.random() * (300 - pieceHeight)}px`;
+                    piece.style.left = `${Math.random() * (600 - pieceWidth)}px`;
+
+                    piece.draggable = true;
+                    piece.addEventListener('dragstart', dragStart);
+                    piece.setAttribute('data-row', i);
+                    piece.setAttribute('data-col', j);
+
+                    puzzleContainer.appendChild(piece);
+                }
+            }
+        });
+    });
+
+    document.getElementById("getLocation").addEventListener("click", function(event)
+    {
+        if (!navigator.geolocation)
+        {
+            console.log("No geolocation.");
+        }
+
+        navigator.geolocation.getCurrentPosition(position =>
+        {
+            let lat = position.coords.latitude;
+            let lon = position.coords.longitude;
+            map.setView([lat, lon]);
+            let marker = L.marker([lat, lon]).addTo(map);
+            marker.bindPopup("Your localization.");
+        }, positionError =>
+        {
+            console.error(positionError);
+        });
+    });
+
+    let draggedPiece = null;
+
+    function dragStart(event)
+    {
+        draggedPiece = event.target;
+    }
+
+    function dragOver(event)
+    {
+        event.preventDefault();
+    }
+
+    function drop(event)
+    {
+        event.preventDefault();
+        const targetElement = event.target;
+
+        if (targetElement && targetElement.hasAttribute('data-row') && targetElement.hasAttribute('data-col'))
+        {
+            const dropZone = document.getElementById('drop-zone');
+            const dropRect = dropZone.getBoundingClientRect();
+            const offsetX = event.clientX - dropRect.left;
+            const offsetY = event.clientY - dropRect.top;
+
+            draggedPiece.style.left = `${offsetX - draggedPiece.offsetWidth / 2}px`;
+            draggedPiece.style.top = `${offsetY - draggedPiece.offsetHeight / 2}px`;
+
+            dropZone.appendChild(draggedPiece);
+        }
+    }
+
+    function checkPuzzleCompletion()
+    {
+        const tolerance = 10;
+        const pieces = document.querySelectorAll('.puzzle-piece');
+        let allCorrect = true;
+
+        pieces.forEach(piece =>
+        {
+            const row = parseInt(piece.getAttribute('data-row'));
+            const col = parseInt(piece.getAttribute('data-col'));
+
+            const correctX = col * parseFloat(piece.style.width);
+            const correctY = row * parseFloat(piece.style.height);
+
+            const pieceX = parseFloat(piece.style.left);
+            const pieceY = parseFloat(piece.style.top);
+
+            if (Math.abs(pieceX - correctX) > tolerance || Math.abs(pieceY - correctY) > tolerance)
+            {
+                allCorrect = false;
+            }
+        });
+
+        if (allCorrect)
+        {
+            alert('WIN. Puzzle ułożone poprawnie!');
+
+            if (Notification.permission !== 'granted')
+            {
+                Notification.requestPermission();
+            }
+
+            if (Notification.permission === 'granted')
+            {
+                new Notification('Gratulacje!!!',
+                    {
+                    body: 'Puzzle ułożone poprawnie!',
+                    });
+            }
+        }
+        else
+        {
+            alert('WRONG. Puzzle są ułożone niepoprawnie.');
+        }
+    }
+
+    const dropZone = document.getElementById('drop-zone');
+    dropZone.addEventListener('dragover', dragOver);
+    dropZone.addEventListener('drop', drop);
+
+    document.getElementById('checkButton').addEventListener('click', checkPuzzleCompletion);
+</script>
+</body>
+</html>
